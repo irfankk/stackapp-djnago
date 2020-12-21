@@ -20,21 +20,22 @@ from stackapi.models import StackAPI
 
 class SearchView(APIView):
 
-	def get(self, request, *args, **kwargs):
+	def get(self, request, *args, **kwargs):		
+		q = request.GET.get('q')
+		if not q:
+			return Response(data={'message': 'please enter search key'}, status=status.HTTP_400_BAD_REQUEST)
 		ip = get_client_ip(request)
 		now = timezone.now()
-		q = request.GET.get('q')
 		limit = request.GET.get('limit', 5)
-		offset = request.GET.get('offset', 0)
-		obj = StackAPI.objects.filter(ip=ip).first()
-		time = obj.date + timezone.timedelta(minutes=1)
-		if cache.get(obj.id) and cache.get(obj.id) > 5:
-			return Response(data={'message': 'your limit exceeded, please try after some time'},
-				status=status.HTTP_400_BAD_REQUEST)
-		cache_count = cache.get(obj.id) if cache.get(obj.id) else 0
-		cache.set(obj.id, cache_count + 1, 60)
+		offset = request.GET.get('offset', 0)		
+		
 		if StackAPI.objects.filter(ip=ip).exists():
 			obj = StackAPI.objects.filter(ip=ip).first()
+			if cache.get(obj.id) and cache.get(obj.id) > 5:
+				return Response(data={'message': 'your limit exceeded, please try after some time'},
+					status=status.HTTP_400_BAD_REQUEST)
+			cache_count = cache.get(obj.id) if cache.get(obj.id) else 0
+			cache.set(obj.id, cache_count + 1, 60)
 			if obj.count > 100 and obj.date.date() == now.date():
 				return Response(data={'message': 'your daily limit exceeded'},
 					status=status.HTTP_400_BAD_REQUEST)
@@ -43,20 +44,15 @@ class SearchView(APIView):
 				obj.save()
 		else:
 			StackAPI.objects.create(ip=ip, count=1, date=now)
-		print(cache.get(ip+ '_query'))
 		if cache.get(ip+ '_query') and cache.get(ip+ '_query') == q:
 			req = cache.get(ip)
-			print('iiiiiiiiiiiiiiii')
 		else:
-			print('llllllllllllllllllllll')
 			url = 'https://api.stackexchange.com/2.2/search/advanced?key={}&site=stackoverflow&order=desc&sort=activity&body={}&filter=default'.format(settings.STACK_APP_KEY, q)
 			req = requests.get(url)
 			cache.set(ip, req)
 			cache.set(ip+ '_query', q)
 		result = req.json().get('items')
-		print(result)
 		total = len(result)
-		print(limit, offset, total, type(result))
 		return Response(data={
 			'total_count': total,
 			'next_url': '?limit=' + str(limit) + '?offset=' + str(min(total, offset + limit)),
