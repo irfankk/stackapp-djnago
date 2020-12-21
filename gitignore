@@ -1,0 +1,15 @@
+
+.idea/*
+*.idea
+*.py[co]
+media/*
+static/*
+__pycache__/*
+*/__pycache__
+
+# Macosx files
+.[dD][sS]_[Ss]tore
+
+# python byte code files
+*.pyc
+
